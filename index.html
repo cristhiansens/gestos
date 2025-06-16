@@ -8,7 +8,8 @@
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      margin: 0; padding: 0;
+      margin: 0;
+      padding: 0;
       background: #f0f2f5;
     }
     #container {
@@ -20,7 +21,7 @@
       border: 3px solid #222;
       border-radius: 12px;
       width: 100%;
-      max-width: 320px; /* Más liviano visualmente */
+      max-width: 640px;
       display: none;
     }
     #toggleCam {
@@ -55,7 +56,7 @@
 </head>
 <body>
   <div id="container">
-    <h2>Control por gestos optimizado</h2>
+    <h2>Control por gestos con la mano</h2>
     <button id="toggleCam">Activar cámara</button>
     <p id="feedback">Cámara apagada</p>
     <video id="video" autoplay playsinline></video>
@@ -64,17 +65,16 @@
       <h3>Instrucciones:</h3>
       <ul>
         <li>Presiona "Activar cámara" para comenzar.</li>
-        <li>Mueve la mano <strong>arriba</strong> para subir.</li>
-        <li>Mueve la mano <strong>abajo</strong> para bajar.</li>
-        <li>Cierra la mano para tomar una captura.</li>
+        <li>Mueve la mano <strong>arriba</strong> para subir la página.</li>
+        <li>Mueve la mano <strong>abajo</strong> para bajar la página.</li>
+        <li>Cierra la mano para tomar una captura de pantalla.</li>
       </ul>
     </div>
   </div>
 
-  <!-- Solo los necesarios -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
 
   <script>
@@ -90,17 +90,16 @@
 
     async function initCamera() {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 320 }, height: { ideal: 240 } }
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: "user" },
+        audio: false
       });
       video.srcObject = stream;
+      video.playsInline = true;
       await video.play();
     }
 
     async function loadModel() {
-      await tf.setBackend('wasm');
-      await tf.ready();
-      model = await handpose.load();
-      detectHands();
+      if (!model) model = await handpose.load();
     }
 
     function isHandClosed(landmarks) {
@@ -114,23 +113,13 @@
 
     function flashScreen() {
       const flash = document.createElement('div');
-      flash.style.position = 'fixed';
-      flash.style.top = 0;
-      flash.style.left = 0;
-      flash.style.width = '100vw';
-      flash.style.height = '100vh';
-      flash.style.backgroundColor = 'white';
-      flash.style.opacity = '0.8';
-      flash.style.zIndex = '9999';
-      flash.style.pointerEvents = 'none';
+      Object.assign(flash.style, {
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        backgroundColor: 'white', opacity: '0.8', zIndex: '9999', pointerEvents: 'none'
+      });
       document.body.appendChild(flash);
       setTimeout(() => flash.style.opacity = '0', 100);
       setTimeout(() => document.body.removeChild(flash), 600);
-    }
-
-    function showCaptureMessage() {
-      feedback.textContent = "📸 ¡Captura tomada!";
-      setTimeout(() => feedback.textContent = "", 2000);
     }
 
     function takeScreenshot() {
@@ -144,7 +133,8 @@
       link.href = canvas.toDataURL("image/png");
       link.click();
       flashScreen();
-      showCaptureMessage();
+      feedback.textContent = "📸 ¡Captura tomada!";
+      setTimeout(() => feedback.textContent = "", 2000);
     }
 
     function startScroll(direction) {
@@ -174,28 +164,23 @@
 
         if (isHandClosed(landmarks)) {
           stopScroll();
-          if (lastGesture !== "cerrada" && now - lastActionTime > 3000) {
+          if (lastGesture !== "cerrada" && now - lastActionTime > 2000) {
             takeScreenshot();
             lastActionTime = now;
             lastGesture = "cerrada";
-            feedback.textContent = "✊ Mano cerrada: Captura";
           }
         } else {
-          if (handCenterY < videoHeight * 0.3) {
-            if (lastGesture !== "arriba") {
-              feedback.textContent = "🖐 Mano arriba: Scroll ↑";
-              startScroll("up");
-              lastGesture = "arriba";
-            }
-          } else if (handCenterY > videoHeight * 0.7) {
-            if (lastGesture !== "abajo") {
-              feedback.textContent = "🖐 Mano abajo: Scroll ↓";
-              startScroll("down");
-              lastGesture = "abajo";
-            }
-          } else {
+          if (handCenterY < videoHeight * 0.3 && lastGesture !== "arriba") {
+            feedback.textContent = "🖐 Mano arriba: Scroll arriba";
+            startScroll("up");
+            lastGesture = "arriba";
+          } else if (handCenterY > videoHeight * 0.7 && lastGesture !== "abajo") {
+            feedback.textContent = "🖐 Mano abajo: Scroll abajo";
+            startScroll("down");
+            lastGesture = "abajo";
+          } else if (handCenterY >= videoHeight * 0.3 && handCenterY <= videoHeight * 0.7) {
             if (lastGesture !== "medio") {
-              feedback.textContent = "✋ Mano en medio: sin acción";
+              feedback.textContent = "✋ Mano en el centro: sin acción";
               lastGesture = "medio";
             }
             stopScroll();
@@ -207,7 +192,8 @@
         stopScroll();
       }
 
-      setTimeout(detectHands, 300); // Revisión cada 300 ms
+      // Repite cada 150ms para reducir consumo
+      setTimeout(detectHands, 150);
     }
 
     toggleBtn.onclick = async () => {
@@ -218,6 +204,7 @@
         cameraActive = true;
         await initCamera();
         await loadModel();
+        detectHands();
       } else {
         stream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
