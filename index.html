@@ -1,220 +1,273 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Control por Gestos Optimizado</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-      background: #f0f2f5;
-    }
-    #container {
-      margin: 20px auto;
-      width: 90%;
-      max-width: 800px;
-    }
-    #video {
-      border: 3px solid #222;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 640px;
-      display: none;
-    }
-    #toggleCam {
-      margin: 15px;
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #0051ff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    #feedback {
-      margin: 10px;
-      font-weight: bold;
-      color: #333;
-      min-height: 1.5em;
-    }
-    .content {
-      margin-top: 30px;
-      text-align: left;
-      padding: 0 20px;
-      line-height: 1.8;
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid #ccc;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 0 8px rgba(0,0,0,0.1);
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control por Gestos Optimizado</title>
+  <link rel="stylesheet" href="estilos.css" />
 </head>
 <body>
-  <div id="container">
-    <h2>Control por gestos con la mano</h2>
-    <button id="toggleCam">Activar cámara</button>
-    <p id="feedback">Cámara apagada</p>
-    <video id="video" autoplay playsinline></video>
+  <img src="infocal.jpg" width="200px"/> 
+  <div id="container">
+    <h2>Control por gestos con la mano</h2>
+    <button id="toggleCam">Activar cámara</button>
+    <p id="feedback">Cámara apagada</p>
+    <video id="video" autoplay playsinline></video>
 
-    <div class="content">
-      <h3>Instrucciones:</h3>
-      <ul>
-        <li>Presiona "Activar cámara" para comenzar.</li>
-        <li>Mueve la mano <strong>arriba</strong> para subir la página.</li>
-        <li>Mueve la mano <strong>abajo</strong> para bajar la página.</li>
-        <li>Cierra la mano para tomar una captura de pantalla.</li>
-      </ul>
-    </div>
-  </div>
+    <div class="content">
+      <h3>Instrucciones:</h3>
+      <ul>
+                <li>Presiona "Activar cámara" para comenzar.</li>
+        <li>Mueve la mano <strong>ARRIBA</strong> para subir la página.</li>
+        <li>Mueve la mano <strong>ABAJO</strong> para bajar la página.</li>
+        <li>Mueve la mano al <strong>CENTRO-IZQUIERDA</strong> para ir Atrás.</li>         <li>Mueve la mano al <strong>CENTRO-DERECHA</strong> para ir Adelante.</li>         <li><strong>CIERRA LA MANO</strong> para tomar una captura.</li>
+        <li><strong>PELLIZCA (dedos índice y pulgar)</strong> para recargar la página.</li>         <p>
+        Este proyecto básico de control por gestos con la mano utiliza inteligencia artificial y visión computacional para permitir una interacción natural y sin contacto con dispositivos digitales. Basado en el modelo Handpose de TensorFlow.js, el sistema detecta movimientos y posiciones de la mano en tiempo real para controlar funciones como el desplazamiento (scroll) y la captura de pantalla. Esta tecnología puede aplicarse en diversas áreas de la vida real, como en la accesibilidad para personas con movilidad limitada, interfaces de control en entornos donde no se puede tocar la pantalla (por ejemplo, quirófanos o industrias limpias), o en dispositivos inteligentes para una experiencia de usuario más intuitiva y fluida. Además, al ser una solución basada en navegador y sin necesidad de hardware especial, permite una implementación rápida y flexible en múltiples plataformas.
+        </p>
+      </ul>
+      
+    </div>
+  </div>
+   <footer id="pie-pagina">
+    &copy; Autor: José Cristhian Rojas Escalante - Proyecto de navegación por gestos con cámara. 2025.  
+  </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
 
-  <script>
-    const video = document.getElementById("video");
-    const toggleBtn = document.getElementById("toggleCam");
-    const feedback = document.getElementById("feedback");
+  <script>
+    const video = document.getElementById("video");
+    const toggleBtn = document.getElementById("toggleCam");
+    const feedback = document.getElementById("feedback");
 
-    let model, stream;
-    let cameraActive = false;
-    let lastActionTime = 0;
-    let lastGesture = "";
-    let scrollInterval = null;
+    // --- NUEVAS CONSTANTES PARA MEJOR LEGIBILIDAD ---
+    const SCROLL_ZONE_TOP = 0.3;      // 30% superior para scroll arriba
+    const SCROLL_ZONE_BOTTOM = 0.7;   // 70% inferior para scroll abajo
+    const SWIPE_ZONE_LEFT = 0.3;      // 30% izquierdo para swipe
+    const SWIPE_ZONE_RIGHT = 0.7;     // 70% derecho para swipe
+    const DETECTION_INTERVAL_MS = 150; // Intervalo de detección
+    const ACTION_COOLDOWN_MS = 1500;  // Enfriamiento para swipe y recarga
+    const PINCH_THRESHOLD = 30;       // Distancia (en píxeles) para detectar pellizco
 
-    async function initCamera() {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: "user" },
-        audio: false
-      });
-      video.srcObject = stream;
-      video.playsInline = true;
-      await video.play();
+    let model, stream;
+    let cameraActive = false;
+    let lastActionTime = 0;
+    let lastGesture = "";
+    let scrollAnimationFrame = null;
+
+    async function initCamera() {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+            width: { ideal: 640 }, // <-- MODIFICADO (480p)
+            height: { ideal: 480 }, // <-- MODIFICADO (480p)
+            facingMode: "user" 
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      video.playsInline = true;
+      await video.play();
+    }
+
+    async function loadModel() {
+      if (!model) model = await handpose.load();
+    }
+
+    // --- FUNCIONES DE DETECCIÓN DE GESTOS ---
+
+    function isHandClosed(landmarks) {
+      const tips = [8, 12, 16, 20]; // Puntas de los dedos (índice, medio, anular, meñique)
+      // Comprueba si las puntas de los dedos están más bajas (mayor valor Y) que sus nudillos
+      return tips.every(tip => landmarks[tip][1] > landmarks[tip - 2][1]);
+    }
+
+    function getDistance(p1, p2) { // <-- NUEVA FUNCIÓN (calcula distancia 2D)
+      return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
     }
 
-    async function loadModel() {
-      if (!model) model = await handpose.load();
+    function isPinching(landmarks) { // <-- NUEVA FUNCIÓN
+      const thumbTip = landmarks[4];
+      const indexTip = landmarks[8];
+      const distance = getDistance(thumbTip, indexTip);
+      return distance < PINCH_THRESHOLD;
     }
 
-    function isHandClosed(landmarks) {
-      const tips = [8, 12, 16, 20];
-      return tips.every(tip => landmarks[tip][1] > landmarks[tip - 2][1]);
-    }
+    function getHandCenterY(landmarks) {
+      return landmarks.reduce((sum, point) => sum + point[1], 0) / landmarks.length;
+    }
 
-    function getHandCenterY(landmarks) {
-      return landmarks.reduce((sum, point) => sum + point[1], 0) / landmarks.length;
-    }
+    function getHandCenterX(landmarks) { // <-- NUEVA FUNCIÓN
+      return landmarks.reduce((sum, point) => sum + point[0], 0) / landmarks.length;
+    }
 
-    function flashScreen() {
-      const flash = document.createElement('div');
-      Object.assign(flash.style, {
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        backgroundColor: 'white', opacity: '0.8', zIndex: '9999', pointerEvents: 'none'
-      });
-      document.body.appendChild(flash);
-      setTimeout(() => flash.style.opacity = '0', 100);
-      setTimeout(() => document.body.removeChild(flash), 600);
-    }
+    // --- FUNCIONES DE ACCIÓN ---
 
-    function takeScreenshot() {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0);
-      const link = document.createElement("a");
-      link.download = `captura_${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-      flashScreen();
-      feedback.textContent = "📸 ¡Captura tomada!";
-      setTimeout(() => feedback.textContent = "", 2000);
-    }
+    function flashScreen() {
+      const flash = document.createElement('div');
+      Object.assign(flash.style, {
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        backgroundColor: 'white', opacity: '0.8', zIndex: '9999', pointerEvents: 'none'
+      });
+      document.body.appendChild(flash);
+      setTimeout(() => flash.style.opacity = '0', 100);
+      setTimeout(() => document.body.removeChild(flash), 600);
+    }
 
-    function startScroll(direction) {
-      if (scrollInterval) clearInterval(scrollInterval);
-      scrollInterval = setInterval(() => {
-        window.scrollBy({ top: direction === "up" ? -20 : 20, behavior: "smooth" });
-      }, 100);
-    }
+    function takeScreenshot() {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+      const link = document.createElement("a");
+      link.download = `captura_${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      flashScreen();
+      feedback.textContent = "📸 ¡Captura tomada!";
+      setTimeout(() => feedback.textContent = "", 2000);
+    }
 
-    function stopScroll() {
-      if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
-      }
-    }
+    function startScroll(direction) {
+      stopScroll(); 
+      function scrollStep() {
+        window.scrollBy({ top: direction === "up" ? -10 : 10, behavior: "auto" });
+        scrollAnimationFrame = requestAnimationFrame(scrollStep);
+      }
+      scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    }
 
-    async function detectHands() {
-      if (!cameraActive || !model) return;
+    function stopScroll() {
+      if (scrollAnimationFrame) {
+        cancelAnimationFrame(scrollAnimationFrame);
+        scrollAnimationFrame = null;
+      }
+    }
 
-      const predictions = await model.estimateHands(video, true);
-      const now = Date.now();
+    // --- BUCLE PRINCIPAL DE DETECCIÓN (MODIFICADO) ---
 
-      if (predictions.length > 0) {
-        const landmarks = predictions[0].landmarks;
-        const handCenterY = getHandCenterY(landmarks);
-        const videoHeight = video.videoHeight;
+    async function detectHands() {
+      if (!cameraActive || !model) return;
 
-        if (isHandClosed(landmarks)) {
+      const predictions = await model.estimateHands(video, true);
+      const now = Date.now();
+      const hasCooldown = (now - lastActionTime > ACTION_COOLDOWN_MS);
+
+      if (predictions.length > 0) {
+        const landmarks = predictions[0].landmarks;
+        const handCenterY = getHandCenterY(landmarks);
+        const videoHeight = video.videoHeight;
+
+        // --- LÓGICA DE GESTOS REESTRUCTURADA ---
+        
+        // 1. Gesto de Puño (Captura) - Máxima prioridad
+        if (isHandClosed(landmarks)) {
+          stopScroll();
+          if (lastGesture !== "cerrada" && hasCooldown) {
+            takeScreenshot();
+            lastActionTime = now;
+            lastGesture = "cerrada";
+          }
+        // 2. Gesto de Pellizco (Recargar) - Siguiente prioridad
+        } else if (isPinching(landmarks)) { // <-- NUEVO
           stopScroll();
-          if (lastGesture !== "cerrada" && now - lastActionTime > 2000) {
-            takeScreenshot();
+          if (lastGesture !== "pinch" && hasCooldown) {
+            feedback.textContent = "👌 Pellizco: Recargando página...";
             lastActionTime = now;
-            lastGesture = "cerrada";
+            lastGesture = "pinch";
+            location.reload();
           }
-        } else {
-          if (handCenterY < videoHeight * 0.3 && lastGesture !== "arriba") {
-            feedback.textContent = "🖐 Mano arriba: Scroll arriba";
-            startScroll("up");
-            lastGesture = "arriba";
-          } else if (handCenterY > videoHeight * 0.7 && lastGesture !== "abajo") {
-            feedback.textContent = "🖐 Mano abajo: Scroll abajo";
-            startScroll("down");
-            lastGesture = "abajo";
-          } else if (handCenterY >= videoHeight * 0.3 && handCenterY <= videoHeight * 0.7) {
-            if (lastGesture !== "medio") {
-              feedback.textContent = "✋ Mano en el centro: sin acción";
-              lastGesture = "medio";
+        // 3. Gestos de Scroll y Swipe (Mano abierta)
+        } else {
+          // 3a. Scroll Vertical (Arriba/Abajo)
+          if (handCenterY < videoHeight * SCROLL_ZONE_TOP) {
+            if (lastGesture !== "arriba") {
+              feedback.textContent = "🖐 Mano arriba: Scroll arriba";
+              startScroll("up");
+              lastGesture = "arriba";
             }
-            stopScroll();
-          }
+          } else if (handCenterY > videoHeight * SCROLL_ZONE_BOTTOM) {
+            if (lastGesture !== "abajo") {
+              feedback.textContent = "🖐 Mano abajo: Scroll abajo";
+              startScroll("down");
+              lastGesture = "abajo";
+            }
+          // 3b. Zona Central (Swipe Horizontal o Parar)
+          } else {
+            stopScroll();
+            const handCenterX = getHandCenterX(landmarks); // <-- NUEVO
+            const videoWidth = video.videoWidth; // <-- NUEVO
+
+            if (handCenterX < videoWidth * SWIPE_ZONE_LEFT) {
+                if (lastGesture !== "izquierda" && hasCooldown) {
+                  feedback.textContent = "👈 Mano Izquierda: Atrás";
+                  lastGesture = "izquierda";
+                  lastActionTime = now;
+                  history.back();
+                }
+            } else if (handCenterX > videoWidth * SWIPE_ZONE_RIGHT) {
+                if (lastGesture !== "derecha" && hasCooldown) {
+                  feedback.textContent = "👉 Mano Derecha: Adelante";
+                  lastGesture = "derecha";
+                  lastActionTime = now;
+                  history.forward();
+                }
+            } else {
+              // Está en el centro-centro
+              if (lastGesture !== "medio") {
+                feedback.textContent = "✋ Mano en el centro: sin acción";
+                lastGesture = "medio";
+              }
+            }
+          }
+        }
+      } else {
+        // No se detecta mano
+        if (lastGesture !== "") {
+          feedback.textContent = "🔍 Esperando mano...";
+          lastGesture = "";
+          stopScroll();
         }
-      } else {
-        feedback.textContent = "🔍 Esperando mano...";
-        lastGesture = "";
-        stopScroll();
-      }
+      }
 
-      // Repite cada 150ms para reducir consumo
-      setTimeout(detectHands, 150);
-    }
+      setTimeout(detectHands, DETECTION_INTERVAL_MS);
+    }
 
-    toggleBtn.onclick = async () => {
-      if (!cameraActive) {
-        toggleBtn.textContent = "Desactivar cámara";
-        feedback.textContent = "🟢 Cámara activada";
-        video.style.display = "block";
-        cameraActive = true;
-        await initCamera();
-        await loadModel();
-        detectHands();
-      } else {
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        video.style.display = "none";
-        toggleBtn.textContent = "Activar cámara";
-        feedback.textContent = "🔴 Cámara apagada";
-        cameraActive = false;
-        stopScroll();
-      }
-    };
-  </script>
+    toggleBtn.onclick = async () => {
+      if (!cameraActive) {
+        try { // <-- NUEVO (Manejo de errores)
+          toggleBtn.textContent = "Cargando...";
+          toggleBtn.disabled = true;
+          feedback.textContent = "Iniciando cámara y modelo...";
+          
+          await initCamera();
+          await loadModel();
+
+          toggleBtn.textContent = "Desactivar cámara";
+          feedback.textContent = "🟢 Cámara activada";
+          video.style.display = "block";
+          cameraActive = true;
+          toggleBtn.disabled = false;
+          detectHands();
+        } catch (error) { // <-- NUEVO (Manejo de errores)
+          console.error("Error al iniciar la cámara:", error);
+          feedback.textContent = "❌ Error: No se pudo acceder a la cámara.";
+          toggleBtn.textContent = "Activar cámara";
+          toggleBtn.disabled = false;
+          cameraActive = false;
+        }
+      } else {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        video.style.display = "none";
+        toggleBtn.textContent = "Activar cámara";
+        feedback.textContent = "🔴 Cámara apagada";
+        cameraActive = false;
+        stopScroll();
+      }
+    }; 
+  </script>
 </body>
 </html>
